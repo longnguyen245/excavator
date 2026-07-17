@@ -1,4 +1,4 @@
-name: CI Core
+name: Excavator
 
 on:
   workflow_call:
@@ -10,7 +10,7 @@ on:
       build_type:
         required: true
         type: string
-        default: "current"
+        default: "stable"
       build_rt:
         required: true
         type: boolean
@@ -20,7 +20,7 @@ on:
         type: boolean
         default: true
       is_release:
-        required: false
+        required: true
         type: boolean
         default: true
 
@@ -42,29 +42,71 @@ jobs:
     steps:
       - name: Trust Build Directory
         run: |
-          git config --global --add safe.directory /__w/WSL2-Linux-Kernel-Rolling/WSL2-Linux-Kernel-Rolling
+          git config --global --add safe.directory /__w/Excavator/Excavator
 
       - name: Checkout
         uses: actions/checkout@main
         with:
           ref: master
 
-      - name: Download WSL2 Stable Kernel
+      - name: Download WSL2 Kernel
         run: |
+          if [ ${{ inputs.build_type }} == "lts" ] || [ ${{ inputs.build_type }} == "lts-empus" ]; then
+          git clone https://github.com/Nevuly/WSL2-Linux-Kernel-Rolling-LTS.git --depth 1 -b ${{ inputs.tag_name }} linux
+          elif [ ${{ inputs.build_type }} == "exp" ] || [ ${{ inputs.build_type }} == "exp-rc" ]; then
+          git clone https://github.com/Nevuly/WSL2-Linux-Kernel-Rolling-EXP.git --depth 1 -b ${{ inputs.tag_name }} linux
+          else
           git clone https://github.com/Nevuly/WSL2-Linux-Kernel-Rolling.git --depth 1 -b ${{ inputs.tag_name }} linux
+          fi
 
-      - name: Check Kernel Version
-        id: check-version
+      - name: Check Kernel Informations
+        id: check-kernel-information
         run: |
-          if [ ${{ inputs.build_type }} == "emus" ]; then
+          if [ ${{ inputs.build_type }} == "stable-emus" ]; then
           IFS=- read -r var1 var2 var3 version var4 <<< ${{ inputs.tag_name }}
+          elif [ ${{ inputs.build_type }} == "lts-empus" ]; then
+          IFS=- read -r var1 var2 var3 version var4 phase <<< ${{ inputs.tag_name }}
+          echo "KERNEL_LTS_EMPUS_PHASE=$phase" >> $GITHUB_OUTPUT
+          if [[ $phase =~ ^[0-9]+\.[0-9]+$ ]]; then
+          echo "KERNEL_LTS_EMPUS_OOB=true" >> $GITHUB_OUTPUT
+          else
+          echo "KERNEL_LTS_EMPUS_OOB=false" >> $GITHUB_OUTPUT
+          fi
+          elif [ ${{ inputs.build_type }} == "exp" ]; then
+          IFS=- read -r var1 var2 var3 phase version <<< ${{ inputs.tag_name }}
+          echo "KERNEL_EXP_PHASE=$phase" >> $GITHUB_OUTPUT
           else
           IFS=- read -r var1 var2 var3 version <<< ${{ inputs.tag_name }}
           fi
           echo "KERNEL_VERSION=$version" >> $GITHUB_OUTPUT
+          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
+          if [ ${{ inputs.build_type }} == "stable-emus" ]; then
+          echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-STABLE-EMUS" >> $GITHUB_OUTPUT
+          elif [ ${{ inputs.build_type }} == "lts" ]; then
+          echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-LTS" >> $GITHUB_OUTPUT
+          elif [ ${{ inputs.build_type }} == "lts-empus" ]; then
+          echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-LTS-EMPUS" >> $GITHUB_OUTPUT
+          elif [ ${{ inputs.build_type }} == "exp" ] || [ ${{ inputs.build_type }} == "exp-rc" ]; then
+          echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-EXP" >> $GITHUB_OUTPUT
+          else
+          echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-STABLE" >> $GITHUB_OUTPUT
+          else
+          if [ ${{ inputs.build_type }} == "stable-emus" ]; then
+          echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-RT-STABLE-EMUS" >> $GITHUB_OUTPUT
+          elif [ ${{ inputs.build_type }} == "lts" ]; then
+          echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-RT-LTS" >> $GITHUB_OUTPUT
+          elif [ ${{ inputs.build_type }} == "lts-empus" ]; then
+          echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-RT-LTS-EMPUS" >> $GITHUB_OUTPUT
+          elif [ ${{ inputs.build_type }} == "exp" ] || [ ${{ inputs.build_type }} == "exp-rc" ]; then
+          echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-RT-EXP" >> $GITHUB_OUTPUT
+          else
+          echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-RT-STABLE" >> $GITHUB_OUTPUT
+          fi
           echo "Kernel Version: $version"
+          echo "Kernel Channel: ${{ inputs.build_type }}"
+          echo "Kernel Architecture: ${{ matrix.arch }}"
 
-      - name: Build WSL2 Stable Kernel
+      - name: Build WSL2 Kernel
         run: |
           cd linux
           if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "x86-rt" ]; then
@@ -79,36 +121,12 @@ jobs:
         run: |
           cd linux
           mkdir -p ${{ matrix.image-name }}-addon_install && make modules_install INSTALL_MOD_PATH=${{ matrix.image-name }}-addon_install
-          if [ ${{ inputs.build_type }} == "emus" ]; then
-          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
-          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE-EMUS/build
-          else
-          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE-EMUS/build
-          fi
-          else
-          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
-          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE/build
-          else
-          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE/build
-          fi
-          fi
+          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}/build
 
       - name: Generate Kernel Headers and Documents
         run: |
           cd linux
-          if [ ${{ inputs.build_type }} == "emus" ]; then
-          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
-          export addon_path=${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE-EMUS/build
-          else
-          export addon_path=${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE-EMUS/build
-          fi
-          else
-          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
-          export addon_path=${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE/build
-          else
-          export addon_path=${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE/build
-          fi
-          fi
+          export addon_path=${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}/build
           mkdir -p $addon_path
           install -Dt "$addon_path" -m644 Makefile Module.symvers System.map vmlinux
           install -Dt "$addon_path/kernel" -m644 kernel/Makefile
@@ -178,19 +196,7 @@ jobs:
           strip -v $STRIP_STATIC "$addon_path/vmlinux"
           fi
           cp -r Documentation $addon_path/Documentation
-          if [ ${{ inputs.build_type }} == "emus" ]; then
-          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
-          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE-EMUS/build/${{ matrix.image-name }}-addon_install
-          else
-          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE-EMUS/build/${{ matrix.image-name }}-addon_install
-          fi
-          else
-          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
-          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE/build/${{ matrix.image-name }}-addon_install
-          else
-          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE/build/${{ matrix.image-name }}-addon_install
-          fi
-          fi
+          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}/build/${{ matrix.image-name }}-addon_install
 
       - name: Download ZFS
         if: ${{ inputs.build_zfs }}
@@ -208,40 +214,13 @@ jobs:
       - name: Generate ZFS Kernel Module
         if: ${{ inputs.build_zfs }}
         run: |
-          if [ ${{ inputs.build_type }} == "emus" ]; then
-          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
-          mkdir -p linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE-EMUS/extra
-          find zfs/module -name "*.ko" -exec cp {} linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE-EMUS/extra \;
-          else
-          mkdir -p linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE-EMUS/extra
-          find zfs/module -name "*.ko" -exec cp {} linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE-EMUS/extra \;
-          fi
-          else
-          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
-          mkdir -p linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE/extra
-          find zfs/module -name "*.ko" -exec cp {} linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE/extra \;
-          else
-          mkdir -p linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE/extra
-          find zfs/module -name "*.ko" -exec cp {} linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE/extra \;
-          fi
-          fi
+          mkdir -p linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}/extra
+          find zfs/module -name "*.ko" -exec cp {} linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}/extra \;
 
       - name: Generate Kernel Addon Package
         run: |
           cd linux
-          if [ ${{ inputs.build_type }} == "emus" ]; then
-          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
-          sudo ../.github/scripts/gen_modules_vhdx.sh "$PWD/${{ matrix.image-name }}-addon_install/" "${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE-EMUS" ${{ matrix.image-name }}-addon.vhdx
-          else
-          sudo ../.github/scripts/gen_modules_vhdx.sh "$PWD/${{ matrix.image-name }}-addon_install/" "${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE-EMUS" ${{ matrix.image-name }}-addon.vhdx
-          fi
-          else
-          if [ ${{ matrix.arch }} == "x86" ] || [ ${{ matrix.arch }} == "arm64" ]; then
-          sudo ../.github/scripts/gen_modules_vhdx.sh "$PWD/${{ matrix.image-name }}-addon_install/" "${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-STABLE" ${{ matrix.image-name }}-addon.vhdx
-          else
-          sudo ../.github/scripts/gen_modules_vhdx.sh "$PWD/${{ matrix.image-name }}-addon_install/" "${{ steps.check-version.outputs.KERNEL_VERSION }}-WSL2-RT-STABLE" ${{ matrix.image-name }}-addon.vhdx
-          fi
-          fi
+          sudo ../.github/scripts/gen_modules_vhdx.sh "$PWD/${{ matrix.image-name }}-addon_install/" "${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}" ${{ matrix.image-name }}-addon.vhdx
           7z a -mx=9 ${{ matrix.image-name }}-addon.vhdx.7z ${{ matrix.image-name }}-addon.vhdx > /dev/null
           mv ${{ matrix.image-name }}-addon.vhdx ../
           mv ${{ matrix.image-name }}-addon.vhdx.7z ../
@@ -259,7 +238,7 @@ jobs:
             echo "| ${{ matrix.image-name }}-addon.vhdx.7z | $addon7zSHA |"
             echo "EOF"
           } >> $GITHUB_OUTPUT
-          if [ ${{ inputs.is_release }} == "true" ] && [ ${{ inputs.build_type }} == "current" ]; then
+          if [ ${{ inputs.is_release }} == "true" ]; then
           {
             if [ ${{ matrix.arch }} == "x86" ]; then
             echo "X86_BUILD_ROWS<<EOF"
@@ -289,15 +268,29 @@ jobs:
       - name: Generate Build Summary
         run: |
           {
-            if [ ${{ inputs.build_type }} == "emus" ]; then
+            if [ ${{ inputs.build_type }} == "stable-emus" ]; then
             echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} Stable Extended Maintenance Update Build (${{ matrix.arch }})"
-            echo
-            echo "> [!NOTE]"
-            echo "> **This build not be release.**"
+            elif [ ${{ inputs.build_type }} == "lts" ]; then
+            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} LTS Build (${{ matrix.arch }})"
+            elif [ ${{ inputs.build_type }} == "lts-empus" ]; then
+            if [ ${{ steps.check-version.outputs.KERNEL_LTS_EMPUS_OOB }} == "true" ]; then
+            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} LTS Extended Maintenance Phase ${{ steps.check-version.outputs.KERNEL_EMPUS_PHASE }} Update Build [**OOB**] (${{ matrix.arch }})"
+            else
+            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} LTS Extended Maintenance Phase ${{ steps.check-version.outputs.KERNEL_EMPUS_PHASE }} Update Build (${{ matrix.arch }})"
+            fi
+            elif [ ${{ inputs.build_type }} == "exp" ]; then
+            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} Experimental Phase ${{ steps.check-version.outputs.KERNEL_EXP_PHASE }} Build (${{ matrix.arch }})"
+            elif [ ${{ inputs.build_type }} == "exp-rc" ]; then
+            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} Experimental Build (${{ matrix.arch }})"
             else
             echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} Stable Build (${{ matrix.arch }})"
             fi
             echo
+            if [ ${{ inputs.is_release }} != "true" ]; then
+            echo "> [!NOTE]"
+            echo "> **This build not be release.**"
+            echo
+            fi
             echo "### Hash Information"
             echo "| File Name | SHA-256 Checksum |"
             echo "|:--------------:|:------:|"
@@ -308,7 +301,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     needs: build
-    if: ${{ inputs.is_release && inputs.build_type == 'current' }}
+    if: ${{ inputs.is_release }}
 
     steps:
       - name: Checkout
@@ -322,11 +315,17 @@ jobs:
       - name: Generate Release Note
         run: |
           {
+            if [ ${{ inputs.build_type }} == "exp" ] || [ ${{ inputs.build_type }} == "exp-rc" ]; then
+            echo "> [!CAUTION]"
+            echo "> **EXPERIMENTAL TEST ONLY RELEASE**"
+            echo
+            else
             echo "> [!WARNING]"
             echo "> ARM64 kernel has not been tested!"
             echo ">"
             echo "> If you have any issues, please leave an issue on the [issue tab](https://github.com/Nevuly/WSL2-Rolling-Kernel-Issue/issues)!"
             echo
+            fi
             if [ ${{ inputs.build_rt }} != "true" ]; then
             echo "> [!NOTE]"
             echo "> This build not included RT kernel!"
@@ -335,8 +334,10 @@ jobs:
             if [ ${{ inputs.build_zfs }} != "true" ]; then
             echo "> [!NOTE]"
             echo "> This build not included ZFS kernel module!"
+            if [ ${{ inputs.build_type }} != "exp" ] && [ ${{ inputs.build_type }} != "exp-rc" ]; then
             echo ">"
             echo "> It will be include again when ZFS driver support current kernel."
+            fi
             echo
             fi
             echo "### **Hash Information**"
@@ -351,13 +352,15 @@ jobs:
             echo "${{ needs.build.outputs.ARM64_RT_BUILD_ROWS }}"
             fi
             echo
+            if [ ${{ inputs.build_type }} != "exp" ] && [ ${{ inputs.build_type }} != "exp-rc" ]; then
             echo "### **How to install this kernel or kernel addon package in WSL2?**"
             echo " - Please see this [wiki](https://github.com/Nevuly/WSL2-Linux-Kernel-Rolling/wiki/Install-Instructions)."
             echo
+            fi
             echo "**This kernel built on ArchLinux.**"
           } > release_note.md
 
-      - name: Release Stable Kernel
+      - name: Release WSL2 Kernel
         uses: softprops/action-gh-release@master
         with:
           name: ${{ inputs.tag_name }}
