@@ -90,6 +90,7 @@ jobs:
           echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-EXP" >> $GITHUB_OUTPUT
           else
           echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-STABLE" >> $GITHUB_OUTPUT
+          fi
           else
           if [ ${{ inputs.build_type }} == "stable-emus" ]; then
           echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-RT-STABLE-EMUS" >> $GITHUB_OUTPUT
@@ -101,6 +102,7 @@ jobs:
           echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-RT-EXP" >> $GITHUB_OUTPUT
           else
           echo "KERNEL_ADDON_DIR_NAME=$version-WSL2-RT-STABLE" >> $GITHUB_OUTPUT
+          fi
           fi
           echo "Kernel Version: $version"
           echo "Kernel Channel: ${{ inputs.build_type }}"
