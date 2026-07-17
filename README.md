@@ -1,8 +1,5 @@
 # Excavator
 
-> [!WARNING]
-> Don't create PR in this repository!
-
 ## Current Kernel Status
 
 | Type | Kernel Version |
