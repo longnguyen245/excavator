@@ -60,7 +60,7 @@ jobs:
           fi
 
       - name: Check Kernel Informations
-        id: check-kernel-information
+        id: check-kernel-informations
         run: |
           if [ ${{ inputs.build_type }} == "stable-emus" ]; then
           IFS=- read -r var1 var2 var3 version var4 <<< ${{ inputs.tag_name }}
@@ -123,12 +123,12 @@ jobs:
         run: |
           cd linux
           mkdir -p ${{ matrix.image-name }}-addon_install && make modules_install INSTALL_MOD_PATH=${{ matrix.image-name }}-addon_install
-          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}/build
+          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-kernel-informations.outputs.KERNEL_ADDON_DIR_NAME }}/build
 
       - name: Generate Kernel Headers and Documents
         run: |
           cd linux
-          export addon_path=${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}/build
+          export addon_path=${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-kernel-informations.outputs.KERNEL_ADDON_DIR_NAME }}/build
           mkdir -p $addon_path
           install -Dt "$addon_path" -m644 Makefile Module.symvers System.map vmlinux
           install -Dt "$addon_path/kernel" -m644 kernel/Makefile
@@ -198,7 +198,7 @@ jobs:
           strip -v $STRIP_STATIC "$addon_path/vmlinux"
           fi
           cp -r Documentation $addon_path/Documentation
-          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}/build/${{ matrix.image-name }}-addon_install
+          rm -rf ${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-kernel-informations.outputs.KERNEL_ADDON_DIR_NAME }}/build/${{ matrix.image-name }}-addon_install
 
       - name: Download ZFS
         if: ${{ inputs.build_zfs }}
@@ -216,13 +216,13 @@ jobs:
       - name: Generate ZFS Kernel Module
         if: ${{ inputs.build_zfs }}
         run: |
-          mkdir -p linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}/extra
-          find zfs/module -name "*.ko" -exec cp {} linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}/extra \;
+          mkdir -p linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-kernel-informations.outputs.KERNEL_ADDON_DIR_NAME }}/extra
+          find zfs/module -name "*.ko" -exec cp {} linux/${{ matrix.image-name }}-addon_install/lib/modules/${{ steps.check-kernel-informations.outputs.KERNEL_ADDON_DIR_NAME }}/extra \;
 
       - name: Generate Kernel Addon Package
         run: |
           cd linux
-          sudo ../.github/scripts/gen_modules_vhdx.sh "$PWD/${{ matrix.image-name }}-addon_install/" "${{ steps.check-version.outputs.KERNEL_ADDON_DIR_NAME }}" ${{ matrix.image-name }}-addon.vhdx
+          sudo ../.github/scripts/gen_modules_vhdx.sh "$PWD/${{ matrix.image-name }}-addon_install/" "${{ steps.check-kernel-informations.outputs.KERNEL_ADDON_DIR_NAME }}" ${{ matrix.image-name }}-addon.vhdx
           7z a -mx=9 ${{ matrix.image-name }}-addon.vhdx.7z ${{ matrix.image-name }}-addon.vhdx > /dev/null
           mv ${{ matrix.image-name }}-addon.vhdx ../
           mv ${{ matrix.image-name }}-addon.vhdx.7z ../
@@ -271,21 +271,21 @@ jobs:
         run: |
           {
             if [ ${{ inputs.build_type }} == "stable-emus" ]; then
-            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} Stable Extended Maintenance Update Build (${{ matrix.arch }})"
+            echo "## ${{ steps.check-kernel-informations.outputs.KERNEL_VERSION }} Stable Extended Maintenance Update Build (${{ matrix.arch }})"
             elif [ ${{ inputs.build_type }} == "lts" ]; then
-            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} LTS Build (${{ matrix.arch }})"
+            echo "## ${{ steps.check-kernel-informations.outputs.KERNEL_VERSION }} LTS Build (${{ matrix.arch }})"
             elif [ ${{ inputs.build_type }} == "lts-empus" ]; then
-            if [ ${{ steps.check-version.outputs.KERNEL_LTS_EMPUS_OOB }} == "true" ]; then
-            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} LTS Extended Maintenance Phase ${{ steps.check-version.outputs.KERNEL_EMPUS_PHASE }} Update Build [**OOB**] (${{ matrix.arch }})"
+            if [ ${{ steps.check-kernel-informations.outputs.KERNEL_LTS_EMPUS_OOB }} == "true" ]; then
+            echo "## ${{ steps.check-kernel-informations.outputs.KERNEL_VERSION }} LTS Extended Maintenance Phase ${{ steps.check-kernel-informations.outputs.KERNEL_EMPUS_PHASE }} Update Build [**OOB**] (${{ matrix.arch }})"
             else
-            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} LTS Extended Maintenance Phase ${{ steps.check-version.outputs.KERNEL_EMPUS_PHASE }} Update Build (${{ matrix.arch }})"
+            echo "## ${{ steps.check-kernel-informations.outputs.KERNEL_VERSION }} LTS Extended Maintenance Phase ${{ steps.check-kernel-informations.outputs.KERNEL_EMPUS_PHASE }} Update Build (${{ matrix.arch }})"
             fi
             elif [ ${{ inputs.build_type }} == "exp" ]; then
-            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} Experimental Phase ${{ steps.check-version.outputs.KERNEL_EXP_PHASE }} Build (${{ matrix.arch }})"
+            echo "## ${{ steps.check-kernel-informations.outputs.KERNEL_VERSION }} Experimental Phase ${{ steps.check-kernel-informations.outputs.KERNEL_EXP_PHASE }} Build (${{ matrix.arch }})"
             elif [ ${{ inputs.build_type }} == "exp-rc" ]; then
-            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} Experimental Build (${{ matrix.arch }})"
+            echo "## ${{ steps.check-kernel-informations.outputs.KERNEL_VERSION }} Experimental Build (${{ matrix.arch }})"
             else
-            echo "## ${{ steps.check-version.outputs.KERNEL_VERSION }} Stable Build (${{ matrix.arch }})"
+            echo "## ${{ steps.check-kernel-informations.outputs.KERNEL_VERSION }} Stable Build (${{ matrix.arch }})"
             fi
             echo
             if [ ${{ inputs.is_release }} != "true" ]; then
