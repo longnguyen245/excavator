@@ -47,7 +47,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
         with:
+          repository: Nevuly/excavator
           ref: master
+          persist-credentials: false
 
       - name: Download WSL2 Kernel
         run: |
