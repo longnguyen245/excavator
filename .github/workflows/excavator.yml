@@ -54,11 +54,11 @@ jobs:
       - name: Download WSL2 Kernel
         run: |
           if [ ${{ inputs.build_type }} == "lts" ] || [ ${{ inputs.build_type }} == "lts-empus" ]; then
-          git clone https://github.com/Nevuly/WSL2-Linux-Kernel-Rolling-LTS.git --depth 1 -b ${{ inputs.tag_name }} linux
+          git clone https://github.com/longnguyen245/WSL2-Linux-Kernel-Rolling-LTS.git --depth 1 -b ${{ inputs.tag_name }} linux
           elif [ ${{ inputs.build_type }} == "exp" ] || [ ${{ inputs.build_type }} == "exp-rc" ]; then
-          git clone https://github.com/Nevuly/WSL2-Linux-Kernel-Rolling-EXP.git --depth 1 -b ${{ inputs.tag_name }} linux
+          git clone https://github.com/longnguyen245/WSL2-Linux-Kernel-Rolling-EXP.git --depth 1 -b ${{ inputs.tag_name }} linux
           else
-          git clone https://github.com/Nevuly/WSL2-Linux-Kernel-Rolling.git --depth 1 -b ${{ inputs.tag_name }} linux
+          git clone https://github.com/longnguyen245/WSL2-Linux-Kernel-Rolling.git --depth 1 -b ${{ inputs.tag_name }} linux
           fi
 
       - name: Check Kernel Informations
